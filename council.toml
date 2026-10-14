@@ -1,0 +1,90 @@
+# Product Council configuration.
+# Each seat can run on a different frontier model / provider. Secrets come from environment variables.
+
+[council]
+consensus_threshold = 0.75          # fraction of voting seats that must validly agree
+max_iterations = 4                  # debate+vote+research rounds before declaring no consensus
+max_clarifying_questions = 5
+initial_top_k = 1                   # evidence hits per source in the initial sweep
+research_top_k = 2                  # evidence hits per source per research request
+max_research_requests = 8           # per research round
+stop_when_research_exhausted = true # stop early if a research round finds nothing new
+skeptic_votes = true                # 7 voters: 6 functional seats + skeptic
+
+[providers.mock]
+type = "mock"
+
+[providers.azure]
+type = "azure_openai"
+endpoint = "${AZURE_OPENAI_ENDPOINT}"
+api_version = "2024-10-21"
+use_entra_id = true                 # DefaultAzureCredential; no keys in config
+
+[providers.anthropic]
+type = "anthropic"
+api_key = "${ANTHROPIC_API_KEY}"
+
+[providers.openai]
+type = "openai"
+api_key = "${OPENAI_API_KEY}"
+
+# Seat -> provider/model. Use different model families to reduce correlated blind spots.
+# Defaults to mock so the sample runs offline; switch provider/model per seat for real runs.
+[seats.customer_success]
+provider = "mock"
+model = "mock"           # e.g. provider = "azure", model = "<your gpt deployment>"
+
+[seats.engineering]
+provider = "mock"
+model = "mock"           # e.g. provider = "anthropic", model = "<claude model id>"
+
+[seats.product]
+provider = "mock"
+model = "mock"
+
+[seats.marketing]
+provider = "mock"
+model = "mock"
+
+[seats.security]
+provider = "mock"
+model = "mock"
+
+[seats.support]
+provider = "mock"
+model = "mock"
+
+[seats.skeptic]
+provider = "mock"
+model = "mock"           # pick a strong reasoning model from a different family than the majority
+temperature = 0.0
+
+[moderator]
+provider = "mock"
+model = "mock"
+temperature = 0.2
+
+[[sources]]
+type = "local"
+source_type = "internal_doc"
+path = "knowledge/internal_docs"
+
+[[sources]]
+type = "local"
+source_type = "customer_interview"
+path = "knowledge/customer_interviews"
+
+[[sources]]
+type = "local"
+source_type = "team_vision"
+path = "knowledge/team_vision"
+
+[[sources]]
+type = "local"
+source_type = "company_vision"
+path = "knowledge/company_vision"
+
+[[sources]]
+type = "local"
+source_type = "partnership"
+path = "knowledge/partnerships"

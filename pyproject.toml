@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "product-council"
+version = "0.1.0"
+description = "Multi-model, evidence-gated council that decides whether to productize a customer gap"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+openai = ["openai>=1.40", "azure-identity>=1.17"]
+anthropic = ["anthropic>=0.34"]
+all = ["openai>=1.40", "azure-identity>=1.17", "anthropic>=0.34"]
+
+[project.scripts]
+product-council = "product_council.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["product_council*"]
