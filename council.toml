@@ -9,7 +9,7 @@ initial_top_k = 1                   # evidence hits per source in the initial sw
 research_top_k = 2                  # evidence hits per source per research request
 max_research_requests = 8           # per research round
 stop_when_research_exhausted = true # stop early if a research round finds nothing new
-skeptic_votes = true                # 7 voters: 6 functional seats + skeptic
+skeptic_votes = true                # 8 voters: 7 functional seats (including Forecast) + skeptic
 
 [providers.mock]
 type = "mock"
@@ -51,6 +51,10 @@ provider = "mock"
 model = "mock"
 
 [seats.support]
+provider = "mock"
+model = "mock"
+
+[seats.forecast]
 provider = "mock"
 model = "mock"
 

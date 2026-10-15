@@ -28,3 +28,12 @@ class AnthropicProvider(LLMProvider):
             kwargs["temperature"] = request.temperature
         resp = await self._client.messages.create(**kwargs)
         return "".join(block.text for block in resp.content if getattr(block, "type", "") == "text")
+
+    async def close(self) -> None:
+        await self._client.close()
+
+    async def list_models(self) -> list[str]:
+        page = await self._client.models.list()
+        models = [model async for model in page]
+        models.sort(key=lambda model: (model.created_at, model.id), reverse=True)
+        return list(dict.fromkeys(model.id for model in models))

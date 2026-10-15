@@ -27,6 +27,14 @@ def render_markdown(o: CouncilOutcome) -> str:
         lines.append(f"**Final vote:** {c.agree}/{c.total} agree ({c.ratio:.0%}; threshold {c.threshold:.0%})")
     lines.append(f"**Iterations:** {len(o.iterations)} · **Evidence items:** {len(o.evidence)}")
 
+    lines += [
+        "", "## Requester-defined product brief", "",
+        f"**Hypothesis:** {o.brief.hypothesis}", "",
+        f"**Expected result:** {o.brief.expected_result}", "",
+        "**Success metrics**", _bullets(o.brief.success_metrics), "",
+        "These are requester-defined hypotheses and targets, not evidence of achieved outcomes.",
+    ]
+
     if o.clarifications:
         lines += ["", "## Clarifications", ""]
         lines += [f"- **{q}** — {a}" for q, a in o.clarifications.items()]

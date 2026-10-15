@@ -30,12 +30,15 @@ INSTRUCTIONS = {
     "consolidate_questions": "Merge these candidate clarifying questions into at most {max_questions} "
                              "non-overlapping questions, ordered by how much the answer could change the decision.",
     "statement": "State your position on the question from your seat's perspective. Ground every claim in the "
-                 "ledger. If a previous round exists, respond to dissent and the Skeptic's challenges.",
+                 "ledger. Evaluate the requester's hypothesis, expected result, and success metrics as targets, "
+                 "not established facts. If a previous round exists, respond to dissent and the Skeptic's challenges.",
     "skeptic_review": "Audit every claim below. Check that each cited evidence ID exists and actually supports the "
                       "claim. Request research for anything weak or unsupported.",
     "rebuttal": "The Skeptic challenged the claims below. For each: defend it with (additional) valid evidence IDs, "
                 "revise it to what the evidence supports, or withdraw it. Request research if needed.",
     "proposal": "Synthesise ONE proposal the council will vote on. Use only supported/defended claims as premises. "
+                "Retain the requester-defined success metrics; add proposal-specific metrics if needed. Include "
+                "post-release activities and risks from the Forecast Agent. "
                 "If a previous proposal failed, address the dissenters' conditions where evidence permits.",
     "vote": "Vote on the proposal. 'agree' requires at least one valid evidence ID supporting your rationale. "
             "If you disagree, say precisely what evidence would change your mind and request that research.",

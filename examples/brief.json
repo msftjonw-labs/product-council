@@ -1,0 +1,8 @@
+{
+  "hypothesis": "Guided day-2 recommendations will help enterprise customers operate migrated workloads with fewer avoidable support escalations.",
+  "expected_result": "Within 90 days after release, pilot customers resolve routine operational issues more independently while improving security posture.",
+  "success_metrics": [
+    "Reduce operational how-to support cases per pilot customer by 20% in the first 90 days compared with the 90 days before release.",
+    "Improve mean secure score for the pilot cohort by 10 points by day 90 compared with the release-day baseline."
+  ]
+}

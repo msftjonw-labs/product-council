@@ -25,6 +25,7 @@ exactly which data is missing.
 | Marketing | Demand, competitive landscape, differentiation, GTM, ecosystem | ✅ |
 | Security | Threat model, compliance, least privilege, secure-by-default, gap-induced exposure | ✅ |
 | Support | Case volume and drivers, deflection, troubleshooting burden, escalations | ✅ |
+| Forecast Agent | Post-release 30/60/90-day activities, adoption, operational demand, owners, dependencies, metric checkpoints | ✅ |
 | **Skeptic** | Audits every claim: the citation must exist *and* support the claim | ✅ (configurable) |
 | Moderator | Neutral facilitator: merges questions, synthesizes the proposal | ❌ |
 
@@ -34,13 +35,75 @@ families (e.g. GPT-family, Claude-family, a reasoning model for the Skeptic) red
 
 ## 3. Lifecycle
 
+### Customer desktop journey
+
+The default customer-facing distribution is a Windows desktop executable, with no Python, TOML editing,
+or prepared input files required on the customer's machine:
+
 ```mermaid
 flowchart TD
-    Q[Question] --> C1[Clarify: every seat proposes questions]
+    EXE[Launch ProductCouncil.exe] --> KEY[Choose provider; enter masked API key]
+    KEY --> MODEL[Load catalog and preselect chat candidate; Azure uses administrator deployment name]
+    MODEL --> CHECK{Real model request succeeds with JSON?}
+    CHECK -- no --> KEY
+    CHECK -- yes --> IDEA[Enter productization idea]
+    IDEA --> BRIEF[Enter hypothesis, expected results, success criteria]
+    BRIEF --> COUNCIL[Run council with live progress]
+    COUNCIL --> ASK[Prompt for clarification or evidence when needed]
+    ASK --> COUNCIL
+    COUNCIL --> PREVIEW[Preview decision and complete audit]
+    PREVIEW --> CONSENT{Approve export?}
+    CONSENT -- no --> DISCARD[Discard; no output saved]
+    CONSENT -- yes --> SAVE[Choose location and save Microsoft Word document]
+```
+
+Supported desktop providers are OpenAI, Anthropic, and Azure OpenAI (API-key authentication; also requires
+an endpoint and deployment name). OpenAI and Anthropic catalogs are loaded asynchronously using the selected
+key, with pagination handled by their SDKs. OpenAI non-chat and specialized model families are filtered out;
+the remaining candidates are sorted newest first by provider timestamp, and the first is preselected.
+The customer can choose a different dropdown entry without knowing its ID. Catalog membership does not prove
+inference access or structured-JSON support, and newest listed is not a guarantee of the latest/best model.
+Catalog failures and empty results are surfaced without inventing defaults; credentials remain available for
+retry. Manual entry remains an advanced fallback. Provider/key/endpoint changes invalidate the selection.
+Azure deployment discovery requires separate management-plane access and is not attempted with an inference
+key; the administrator must supply the deployment name. All seats and the moderator use the selected model. The connection test
+validates actual inference access, not just API-key syntax; it may incur provider charges.
+
+The desktop session creates its configuration in memory and uses only requester clarifications and
+human-provided evidence, never bundled fictional sources. Research requests appear in follow-up dialogs.
+It does not browse the web. Insufficient evidence may lead to a no-consensus result.
+
+Provider calls run in a worker thread; Tk updates and follow-up dialogs run on the main thread. A queue and
+futures bridge asynchronous research to customer dialogs without freezing the window. Provider failures are
+surfaced without SDK response bodies or credentials. Keys are session-only unless the customer explicitly
+selects Remember. `connections.py` uses the Windows Credential Manager backend directly (no automatic keyring
+backend selection or plaintext fallback), storing provider-specific connections and the preferred provider
+in one vault credential. It stores credentials only after successful inference validation. The next launch
+automatically validates the preferred saved connection and moves to idea entry. Validation may incur a charge.
+Manage connections supports switching, replacing, and explicitly forgetting provider credentials.
+Unchecking Remember removes an existing remembered connection on successful validation. Revoked keys return
+to the editable connection form. Vault errors are explicit and never include raw exceptions or credentials.
+Nothing is saved to ordinary configuration files. Stored credentials are scoped to the Windows account,
+not shared across computers, and remain accessible to the running app in memory. User inputs are sent to the
+chosen provider during processing, disclosed before the validation button.
+
+The preview includes the decision memo and a full structured audit tab. Explicit approval plus a selected
+save location gates Word export; no Markdown or transcript files are automatically written by the desktop.
+The DOCX contains the complete proposal, forecast, dissent, brief, clarifications, research requests,
+claims, and evidence excerpts. An atomic replacement prevents partial exports on a failed write.
+Approval is permission to export, not product-release approval. API and CLI behavior below is unchanged.
+
+### Council orchestration
+
+```mermaid
+flowchart TD
+    Q[Question + requester-defined product brief] --> B{Hypothesis, expected result and metrics valid?}
+    B -- no --> ERR[Reject before any agent calls]
+    B -- yes --> C1[Clarify: every seat proposes questions]
     C1 --> C2[Moderator merges to max N]
     C2 --> C3[Requester answers -> ledger as user_clarification]
     C3 --> R0[Initial research sweep]
-    R0 --> D[Debate: 6 seats state positions + cited claims, in parallel]
+    R0 --> D[Debate: 7 seats state positions + cited claims, in parallel]
     D --> G[Deterministic evidence gate: invalid or missing IDs -> unsupported]
     G --> S[Skeptic audits every claim]
     S --> RB[Rebuttal: defend / revise / withdraw challenged claims]
@@ -56,7 +119,16 @@ flowchart TD
     NE -- yes --> D
 ```
 
-### 3.1 Clarification (before any debate)
+### 3.1 Required brief and clarification (before any debate)
+The requester supplies a `ProductBrief` containing `hypothesis`, `expected_result`, and `success_metrics`
+(a non-empty list of non-empty strings). Blank or wrongly typed fields are rejected before any agent calls.
+The CLI collects these interactively or reads `--brief` JSON; non-interactive runs and `--no-clarify` require
+the JSON file. The Python API requires `Council.run(question, brief=ProductBrief(...))`.
+
+The brief is supplied to every agent task and persisted in the memo and transcript. It is a hypothesis and
+evaluation baseline, not citable evidence of outcomes. Proposals retain its success metrics and may add more.
+Requesters should specify measurable targets and evaluation timeframes.
+
 Every seat, including the Skeptic, proposes up to 2 questions "whose answer would change the decision". The
 Moderator dedupes them and ranks by decision impact (default max 5). Answers enter the evidence ledger as
 `user_clarification` items, so they can be cited and audited like any other evidence. Unanswered questions are
@@ -65,6 +137,10 @@ dropped, not invented.
 ### 3.2 Debate → challenge → rebuttal
 - **Statement**: each functional seat returns a `position` (support/oppose/conditional), a summary, `claims[]`
   (each with `evidence_ids` and `is_assumption`), and `research_requests[]`.
+- **Forecast Agent**: participates as a functional voting seat, forecasting post-release activities in its
+  summary over 30/60/90 days, with likely owners, dependencies, risks, and checkpoints against the brief.
+  It distinguishes assumptions and alternative scenarios from evidenced projections. The Moderator includes
+  relevant activities and risks in the proposal. Forecast claims receive the same evidence audit as other seats.
 - **Deterministic evidence gate** (code, not LLM): every cited ID is checked against the ledger. A claim with no
   valid ID is `unsupported` and can't be upgraded by any model, including a lenient Skeptic. Hallucinated IDs
   are recorded as `invalid_evidence_ids`.
@@ -88,7 +164,7 @@ consensus = (# valid "agree" votes) / (# voting seats) >= threshold (default 0.7
 - The denominator is **all** voting seats. Abstentions, agent failures and invalid votes count against.
 - An `agree` vote **must cite at least one valid evidence ID**, or it is invalid. This keeps "backed by data"
   true for the final decision, not just the debate.
-- With 7 voters you need 6 (86 %), because 5/7 = 71 %. With the Skeptic non-voting (6 voters) you need 5 (83 %).
+- With 8 voters you need 6 (75 %). With the Skeptic non-voting (7 voters) you need 6 (86 %).
   Exactly 75 % (e.g. 3/4) passes; set `consensus_threshold` slightly higher if "strictly over 75 %" is required.
 
 ### 3.5 Research loop (when consensus < 75 %)
@@ -114,6 +190,8 @@ consensus = (# valid "agree" votes) / (# voting seats) >= threshold (default 0.7
 ## 4. Data model (see `product_council/schemas.py`)
 
 - `Evidence {id, source_type, title, location, excerpt, retrieved_iteration, query}` — the only citable unit.
+- `ProductBrief {hypothesis, expected_result, success_metrics}` — mandatory requester-defined evaluation baseline,
+  stored in `CouncilOutcome.brief`.
 - `Claim {id, role, iteration, text, evidence_ids, invalid_evidence_ids, is_assumption, status}`, where status is
   `unverified → supported | weak | unsupported → defended | withdrawn`.
 - `Challenge {claim_id, target_role, verdict, reason, required_evidence, resolution}`
@@ -138,8 +216,14 @@ product_council/
   config.py         TOML config, ${ENV} expansion, seat->model binding
   report.py         decision memo (Markdown)
   cli.py            `python -m product_council run ...`
+  desktop.py        Tk desktop wizard, worker/dialog bridge, preview and export consent
+  desktop_session.py  key/model validation and in-memory single-model council setup
+  word_report.py    complete proposal and audit export to Microsoft Word
 ```
 Seats run in parallel (`asyncio.gather`) inside each phase, and phases run in order.
+`desktop_launcher.py` and `build-desktop.ps1` package the desktop as a windowed single-file Windows executable.
+Production distribution requires appropriate code signing and administrative approval where Application
+Control policies restrict executables or the bundled Python DLLs. Packaging alone does not grant that trust.
 
 ### 5.2 Production deployment (Azure)
 | Concern | Choice |
@@ -183,6 +267,7 @@ Seats run in parallel (`asyncio.gather`) inside each phase, and phases run in or
 `consensus_threshold` (0.75), `max_iterations` (4), `max_clarifying_questions` (5), `initial_top_k`,
 `research_top_k`, `max_research_requests`, `stop_when_research_exhausted`, `skeptic_votes`, per-seat
 `provider/model/temperature/max_tokens`, `[[sources]]`.
+Existing configurations must include `[seats.forecast]` with its provider/model, as in `council.toml`.
 
 ## 9. Known limitations and next steps
 - The local TF-IDF source is a stand-in. Production should use hybrid/semantic search with re-ranking.

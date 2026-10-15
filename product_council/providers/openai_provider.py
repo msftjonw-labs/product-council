@@ -6,6 +6,12 @@ from typing import Any
 from .base import LLMProvider, LLMRequest
 
 
+def _is_chat_model(model_id: str) -> bool:
+    prefixes = ("gpt-", "chatgpt-", "o1", "o3", "o4")
+    excluded = ("audio", "realtime", "transcrib", "tts", "image", "instruct", "search", "codex", "-pro")
+    return model_id.startswith(prefixes) and not any(part in model_id for part in excluded)
+
+
 class OpenAIProvider(LLMProvider):
     def __init__(
         self,
@@ -51,3 +57,14 @@ class OpenAIProvider(LLMProvider):
             kwargs["response_format"] = {"type": "json_object"}
         resp = await self._client.chat.completions.create(**kwargs)
         return resp.choices[0].message.content or ""
+
+    async def close(self) -> None:
+        await self._client.close()
+
+    async def list_models(self) -> list[str]:
+        if self.name == "azure_openai":
+            raise NotImplementedError("Azure requires a deployment name from your resource administrator.")
+        page = await self._client.models.list()
+        models = [model async for model in page if _is_chat_model(model.id)]
+        models.sort(key=lambda model: (model.created, model.id), reverse=True)
+        return list(dict.fromkeys(model.id for model in models))

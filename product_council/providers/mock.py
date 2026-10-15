@@ -50,6 +50,12 @@ CONCERNS: dict[str, dict[str, Any]] = {
         "source_types": ["internal_doc"],
         "question": "What share of post-migration support cases are operational how-to vs. product defects?",
     },
+    "forecast": {
+        "keywords": ["case volume", "adoption"],
+        "query": "post-release adoption support case volume first 90 days operational workload",
+        "source_types": ["internal_doc", "customer_interview"],
+        "question": "What adoption, operational workload, and follow-up activities are expected in the first 90 days?",
+    },
 }
 
 
@@ -94,9 +100,18 @@ class MockProvider(LLMProvider):
                            "evidence_ids": general})
         claims.append({"text": f"From the {role} lens, impact is likely significant.", "evidence_ids": [],
                        "is_assumption": not hits})
+        summary = f"{role} {'supports' if hits else 'needs more data before supporting'} the investment."
+        if role == "forecast":
+            summary += (
+                " Assumed post-release activities (not proven outcomes): days 1-30, Customer Success leads "
+                "onboarding and Engineering monitors reliability; days 31-60, Support reviews case drivers "
+                "and Engineering adjusts capacity; days 61-90, Product reviews customer feedback and the "
+                "requester's success metrics to prioritise follow-up releases. Dependencies: telemetry and "
+                "staffing. Low adoption or higher support load would require revising this outlook."
+            )
         return {
             "position": "support" if hits else "conditional",
-            "summary": f"{role} {'supports' if hits else 'needs more data before supporting'} the investment.",
+            "summary": summary,
             "claims": claims,
             "research_requests": [] if hits else [
                 {"query": concern["query"], "source_types": concern["source_types"],

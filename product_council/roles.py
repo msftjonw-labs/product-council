@@ -71,6 +71,16 @@ ROLES: dict[str, RoleSpec] = {
         "Represent supportability: support case volume and drivers, deflection potential, troubleshooting "
         "burden, escalation paths, documentation needs and operational load on support engineers.",
     ),
+    "forecast": RoleSpec(
+        "forecast",
+        "Forecast Agent",
+        "Forecast activities after the product releases, not just the work needed to ship it. In your summary, "
+        "give a sequenced 30/60/90-day post-release outlook covering onboarding and adoption, monitoring, "
+        "support and maintenance, capacity and cost, customer feedback and follow-up iterations. Identify "
+        "likely owners, dependencies, risks, and checkpoints against the requester's expected result and "
+        "success metrics. Distinguish evidence-backed projections from assumptions; describe uncertainty "
+        "and alternative scenarios rather than presenting forecasts as facts.",
+    ),
     "skeptic": RoleSpec(
         "skeptic",
         "Skeptic (Evidence Auditor)",
@@ -92,5 +102,7 @@ and synthesise a single proposal that has the best chance of earning evidence-ba
 least the consensus threshold of voting members. A proposal may recommend build, pilot, partner, defer or
 do_not_build. Address dissenters' stated conditions where the evidence allows; never paper over
 unresolved disagreement and never cite evidence IDs that are not in the ledger.
+Preserve the requester's product brief as the baseline for assessing proposals, and incorporate the
+Forecast Agent's post-release activities and risks where supported.
 Always reply with a single JSON object matching the requested schema.
 """

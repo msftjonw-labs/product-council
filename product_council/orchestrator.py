@@ -14,7 +14,7 @@ from .research import EvidenceLedger, HumanSource, LocalCorpusSource, ResearchEn
 from .roles import DEBATING_ROLES, MODERATOR_PROMPT, ROLES
 from .schemas import (
     DECISIONS, SOURCE_TYPES, Challenge, Claim, ConsensusResult, CouncilOutcome, IterationRecord, Proposal,
-    ResearchRequest, Statement, Vote,
+    ProductBrief, ResearchRequest, Statement, Vote,
 )
 
 log = logging.getLogger("product_council")
@@ -69,6 +69,7 @@ class Council:
         self.claims: dict[str, Claim] = {}
         self.question = ""
         self.clarifications: dict[str, str] = {}
+        self.brief: ProductBrief | None = None
 
     @property
     def voters(self) -> list[str]:
@@ -82,6 +83,7 @@ class Council:
             seat, system = self.cfg.seats[seat_key], ROLES[seat_key].system_prompt()
         provider = self.providers[seat.provider]
         md = {"task": task, "role": seat_key, **metadata,
+              "brief": asdict(self.brief) if self.brief else None,
               "evidence": [asdict(e) for e in self.ledger.all()]}
         last: Exception | None = None
         prompt = user
@@ -103,15 +105,25 @@ class Council:
                           max_tokens=seat.max_tokens, metadata=md)
 
     def _prompt(self, task: str, sections: dict[str, Any] | None = None, **fmt: Any) -> str:
+        context: dict[str, Any] = {}
+        if self.brief:
+            context["Requester-defined product brief (hypothesis and targets, not proof)"] = asdict(self.brief)
+        context.update(sections or {})
         return build_prompt(task, question=self.question, clarifications=self.clarifications,
-                            evidence=self.ledger.all(), sections=sections, **fmt)
+                            evidence=self.ledger.all(), sections=context, **fmt)
 
     # ------------------------------------------------------------------ phases
-    async def run(self, question: str) -> CouncilOutcome:
+    async def run(self, question: str, *, brief: ProductBrief | None = None) -> CouncilOutcome:
+        if not isinstance(brief, ProductBrief):
+            raise ValueError("A requester-defined ProductBrief is required before the council can start")
+        brief.validate()
+        self.brief = ProductBrief(brief.hypothesis, brief.expected_result, list(brief.success_metrics))
         self.question = question
         self.emit("start", {"question": question, "voters": self.voters})
+        self.emit("brief", asdict(self.brief))
         await self._clarify_phase()
-        sweep = " ".join([question, *self.clarifications.values()])
+        sweep = " ".join([question, self.brief.hypothesis, self.brief.expected_result,
+                          *self.brief.success_metrics, *self.clarifications.values()])
         initial = await self.research.run([ResearchRequest(sweep, [], "initial sweep", "moderator")], 0,
                                           top_k=self.cfg.initial_top_k)
         self.emit("research", {"iteration": 0, "new_evidence": [e.id for e in initial]})
@@ -150,6 +162,7 @@ class Council:
             question=question, status=status, stop_reason=stop_reason, clarifications=self.clarifications,
             iterations=iterations, evidence=self.ledger.all(), claims=list(self.claims.values()),
             final_proposal=proposal, final_consensus=iterations[-1].consensus if iterations else None,
+            brief=self.brief,
         )
         self.emit("done", {"status": status, "stop_reason": stop_reason})
         return outcome
@@ -293,7 +306,9 @@ class Council:
             id=f"P{rec.iteration}", iteration=rec.iteration, title=str(res.get("title", "Untitled proposal")),
             decision=decision if decision in DECISIONS else "defer", summary=str(res.get("summary", "")),
             scope=_strs(res.get("scope")), out_of_scope=_strs(res.get("out_of_scope")),
-            success_metrics=_strs(res.get("success_metrics")),
+            success_metrics=list(dict.fromkeys([
+                *(self.brief.success_metrics if self.brief else []), *_strs(res.get("success_metrics")),
+            ])),
             risks_and_mitigations=_strs(res.get("risks_and_mitigations")),
             open_questions=_strs(res.get("open_questions")), evidence_ids=valid,
             changes_from_previous=str(res.get("changes_from_previous", "")),

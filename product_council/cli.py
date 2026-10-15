@@ -12,11 +12,17 @@ from typing import Any
 from .config import CouncilConfig, force_mock, load_config
 from .orchestrator import Council, build_sources
 from .report import render_markdown
+from .schemas import ProductBrief
 
 
 def _print_event(kind: str, p: dict[str, Any]) -> None:
     if kind == "start":
         print(f"\n== Product Council convened ({len(p['voters'])} voting seats) ==")
+    elif kind == "brief":
+        print(f"\n-- Requester-defined product brief --\nHypothesis: {p['hypothesis']}\n"
+              f"Expected result: {p['expected_result']}\nSuccess metrics:")
+        for metric in p["success_metrics"]:
+            print(f"  - {metric}")
     elif kind == "clarify":
         print(f"\n-- Clarifying questions ({len(p['questions'])}) --")
         for i, q in enumerate(p["questions"], 1):
@@ -70,6 +76,24 @@ def _file_clarify(path: Path):
     return clarify
 
 
+def _interactive_brief() -> ProductBrief:
+    print("Define the product brief before the council starts (all fields are required).")
+
+    def required(label: str) -> str:
+        while True:
+            value = input(label + "\n> ").strip()
+            if value:
+                return value
+            print("This field is required.")
+
+    hypothesis = required("Hypothesis: what change do you believe will address the product-market gap?")
+    expected_result = required("Expected result: what outcome should follow release?")
+    metrics = [required("Success metric: include a measurable target and evaluation timeframe.")]
+    while metric := input("Another success metric (leave blank to finish):\n> ").strip():
+        metrics.append(metric)
+    return ProductBrief(hypothesis, expected_result, metrics)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="product-council", description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -79,6 +103,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--config", "-c", type=Path, default=Path("council.toml"))
     run.add_argument("--mock", action="store_true", help="Force every seat onto the offline mock provider")
     run.add_argument("--answers", type=Path, help="JSON file with clarifying answers (non-interactive)")
+    run.add_argument("--brief", type=Path,
+                     help="Requester JSON with hypothesis, expected_result, and success_metrics (list of strings)")
     run.add_argument("--no-clarify", action="store_true", help="Skip asking clarifying questions")
     run.add_argument("--interactive-research", action="store_true",
                      help="Let the operator supply extra data (e.g. new interview notes) between iterations")
@@ -90,6 +116,17 @@ def main(argv: list[str] | None = None) -> int:
     question = args.question or (args.question_file.read_text(encoding="utf-8").strip() if args.question_file else "")
     if not question:
         ap.error("--question or --question-file is required")
+
+    if args.brief:
+        try:
+            brief = ProductBrief.from_dict(json.loads(args.brief.read_text(encoding="utf-8")))
+        except (OSError, ValueError) as exc:
+            ap.error(f"Invalid --brief: {exc}")
+    elif args.answers or args.no_clarify or not sys.stdin.isatty():
+        ap.error("--brief is required for non-interactive runs and with --no-clarify")
+    else:
+        brief = _interactive_brief()
+    brief.validate()
 
     cfg = load_config(args.config) if args.config.exists() else CouncilConfig()
     if args.mock:
@@ -103,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     sources = build_sources(cfg, _interactive_research if args.interactive_research else None)
 
     council = Council(cfg, sources=sources, clarify=clarify, on_event=_print_event)
-    outcome = asyncio.run(council.run(question))
+    outcome = asyncio.run(council.run(question, brief=brief))
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "decision.md").write_text(render_markdown(outcome), encoding="utf-8")

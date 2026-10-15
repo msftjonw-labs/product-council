@@ -18,6 +18,33 @@ DECISIONS = ("build", "pilot", "partner", "defer", "do_not_build")
 
 
 @dataclass
+class ProductBrief:
+    hypothesis: str
+    expected_result: str
+    success_metrics: list[str]
+
+    def validate(self) -> None:
+        for name in ("hypothesis", "expected_result"):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"Product brief {name} must be a non-empty string")
+        if (not isinstance(self.success_metrics, list) or not self.success_metrics
+                or any(not isinstance(m, str) or not m.strip() for m in self.success_metrics)):
+            raise ValueError("Product brief success_metrics must be a non-empty list of non-empty strings")
+
+    @classmethod
+    def from_dict(cls, data: Any) -> ProductBrief:
+        if not isinstance(data, dict):
+            raise ValueError("Product brief must be a JSON object")
+        required = {"hypothesis", "expected_result", "success_metrics"}
+        if set(data) != required:
+            raise ValueError("Product brief must contain exactly: hypothesis, expected_result, success_metrics")
+        brief = cls(**data)
+        brief.validate()
+        return brief
+
+
+@dataclass
 class Evidence:
     id: str
     source_type: str
@@ -145,6 +172,7 @@ class CouncilOutcome:
     claims: list[Claim]
     final_proposal: Proposal | None
     final_consensus: ConsensusResult | None
+    brief: ProductBrief
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

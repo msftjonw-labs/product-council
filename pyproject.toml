@@ -14,9 +14,14 @@ dependencies = []
 openai = ["openai>=1.40", "azure-identity>=1.17"]
 anthropic = ["anthropic>=0.34"]
 all = ["openai>=1.40", "azure-identity>=1.17", "anthropic>=0.34"]
+desktop = ["openai>=1.40", "azure-identity>=1.17", "anthropic>=0.34", "python-docx>=1.1", "keyring>=25"]
+build = ["pyinstaller>=6"]
 
 [project.scripts]
 product-council = "product_council.cli:main"
+
+[project.gui-scripts]
+product-council-desktop = "product_council.desktop:main"
 
 [tool.setuptools.packages.find]
 include = ["product_council*"]

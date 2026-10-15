@@ -12,7 +12,7 @@ class LLMRequest:
     system: str
     user: str
     json_mode: bool = True
-    temperature: float = 0.3
+    temperature: float | None = 0.3
     max_tokens: int = 2000
     # Structured context. Real providers ignore it; the mock provider uses it to behave deterministically.
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -24,3 +24,10 @@ class LLMProvider(abc.ABC):
     @abc.abstractmethod
     async def complete(self, request: LLMRequest) -> str:
         """Return the raw text completion for the request."""
+
+    async def close(self) -> None:
+        """Release provider resources when a desktop session finishes."""
+
+    async def list_models(self) -> list[str]:
+        """List chat model candidates, newest first. Inference access must still be validated."""
+        raise NotImplementedError("This provider does not support chat model discovery.")
